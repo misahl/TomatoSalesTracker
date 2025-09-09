@@ -1,0 +1,15 @@
+TOMATO SALES TRACKER - ASSETS FOLDER
+
+This folder contains placeholder references for app assets.
+For production, you should replace these with actual image files:
+
+Required files:
+- icon.png (1024x1024) - App icon
+- adaptive-icon.png (1024x1024) - Android adaptive icon  
+- splash.png (1284x2778) - Splash screen
+- favicon.png (48x48) - Web favicon
+
+For now, EAS Build will generate default icons and splash screens.
+
+Tomato emoji can be used as inspiration: 🍅
+App colors: Primary #4CAF50 (Green), Background #f5f5f5

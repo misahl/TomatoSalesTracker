@@ -21,26 +21,35 @@ import databaseHelper from '../database/database';
 
 const HomeScreen = ({navigation}) => {
   const [summary, setSummary] = useState({
-    totalTraysSold: 0,
+    totalQuantitySold: 0,
     totalMoneyEarned: 0,
-    traysLeft: 50,
+    paidAmount: 0,
+    pendingAmount: 0,
     totalTransactions: 0,
-    dailyTarget: 50,
+    inventory: []
   });
+  const [pendingPayments, setPendingPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Load summary data
+  // Load enhanced summary data
   const loadSummary = async () => {
     try {
       setLoading(true);
       // Initialize database if not already done
       await databaseHelper.initDB();
+      
+      // Get today's summary with inventory
       const todaysSummary = await databaseHelper.getTodaysSummary();
       setSummary(todaysSummary);
+      
+      // Get pending payments
+      const pendingPaymentsList = await databaseHelper.getAllPendingPayments();
+      setPendingPayments(pendingPaymentsList);
+      
     } catch (error) {
       console.log('Error loading summary:', error);
-      Alert.alert('Error', 'Failed to load sales data. Please try again.');
+      Alert.alert('Error', 'Failed to load business data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -64,16 +73,16 @@ const HomeScreen = ({navigation}) => {
     loadSummary();
   }, []);
 
-  // Calculate progress percentage
-  const progressPercentage = summary.dailyTarget > 0 
-    ? Math.min(summary.totalTraysSold / summary.dailyTarget, 1) 
+  // Calculate collection rate (paid vs total sales)
+  const collectionRate = summary.totalMoneyEarned > 0
+    ? (summary.paidAmount / summary.totalMoneyEarned)
     : 0;
 
-  // Get status color based on progress
+  // Get status color based on collection rate and inventory status
   const getStatusColor = () => {
-    if (progressPercentage >= 1) return '#4CAF50'; // Green - Target achieved
-    if (progressPercentage >= 0.8) return '#FF9800'; // Orange - Close to target
-    return '#2196F3'; // Blue - In progress
+    if (collectionRate >= 0.9) return '#4CAF50'; // Green - Good collection
+    if (collectionRate >= 0.7) return '#FF9800'; // Orange - Moderate collection
+    return '#2196F3'; // Blue - Needs attention
   };
 
   // Format currency
@@ -84,9 +93,31 @@ const HomeScreen = ({navigation}) => {
   // Get current time greeting
   const getGreeting = () => {
     const hour = new Date().getHours();
+    if (hour < 6) return 'Early Start';
     if (hour < 12) return 'Good Morning';
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
+  };
+
+  // Calculate total inventory value
+  const getTotalInventoryValue = () => {
+    if (!summary.inventory || summary.inventory.length === 0) return 0;
+    return summary.inventory.reduce((total, item) => {
+      return total + ((item.current_stock || 0) * (item.market_rate || 0));
+    }, 0);
+  };
+
+  // Get pending payments count
+  const getPendingPaymentsCount = () => {
+    return pendingPayments ? pendingPayments.length : 0;
+  };
+
+  // Get total pending amount
+  const getTotalPendingAmount = () => {
+    if (!pendingPayments || pendingPayments.length === 0) return 0;
+    return pendingPayments.reduce((total, payment) => {
+      return total + (payment.total_due_amount || 0);
+    }, 0);
   };
 
   return (
@@ -102,37 +133,37 @@ const HomeScreen = ({navigation}) => {
           <Card.Content>
             <Title style={styles.greetingTitle}>{getGreeting()}!</Title>
             <Paragraph style={styles.greetingText}>
-              Let's track today's tomato sales
+              Wholesale Vegetable Business Dashboard
             </Paragraph>
           </Card.Content>
         </Card>
 
-        {/* Progress Overview */}
+        {/* Collection Rate & Business Overview */}
         <Card style={styles.progressCard}>
           <Card.Content>
             <View style={styles.progressHeader}>
-              <Title style={styles.progressTitle}>Daily Progress</Title>
+              <Title style={styles.progressTitle}>Payment Collection</Title>
               <Chip 
                 mode="outlined" 
                 textStyle={{color: getStatusColor()}}
                 style={{borderColor: getStatusColor()}}>
-                {Math.round(progressPercentage * 100)}%
+                {Math.round(collectionRate * 100)}%
               </Chip>
             </View>
             
             <ProgressBar 
-              progress={progressPercentage} 
+              progress={collectionRate} 
               color={getStatusColor()} 
               style={styles.progressBar}
             />
             
             <View style={styles.progressStats}>
               <Text style={styles.progressText}>
-                {summary.totalTraysSold} of {summary.dailyTarget} trays sold
+                ₹{summary.paidAmount.toFixed(0)} collected of ₹{summary.totalMoneyEarned.toFixed(0)} total sales
               </Text>
-              {summary.traysLeft > 0 && (
+              {summary.pendingAmount > 0 && (
                 <Text style={styles.remainingText}>
-                  {summary.traysLeft} trays remaining
+                  ₹{summary.pendingAmount.toFixed(0)} pending from {getPendingPaymentsCount()} vendors
                 </Text>
               )}
             </View>
@@ -144,10 +175,10 @@ const HomeScreen = ({navigation}) => {
           <Card style={[styles.metricCard, styles.soldCard]}>
             <Card.Content style={styles.metricContent}>
               <Title style={styles.metricNumber}>
-                {summary.totalTraysSold}
+                {summary.totalQuantitySold}
               </Title>
               <Paragraph style={styles.metricLabel}>
-                Trays Sold Today
+                Total Units Sold
               </Paragraph>
             </Card.Content>
           </Card>
@@ -158,16 +189,41 @@ const HomeScreen = ({navigation}) => {
                 {formatCurrency(summary.totalMoneyEarned)}
               </Title>
               <Paragraph style={styles.metricLabel}>
-                Today's Earnings
+                Today's Revenue
               </Paragraph>
             </Card.Content>
           </Card>
         </View>
 
-        {/* Additional Stats */}
+        {/* Inventory & Payments Overview */}
+        <View style={styles.metricsContainer}>
+          <Card style={[styles.metricCard, styles.inventoryCard]}>
+            <Card.Content style={styles.metricContent}>
+              <Title style={styles.metricNumber}>
+                {formatCurrency(getTotalInventoryValue())}
+              </Title>
+              <Paragraph style={styles.metricLabel}>
+                Stock Value
+              </Paragraph>
+            </Card.Content>
+          </Card>
+
+          <Card style={[styles.metricCard, styles.pendingCard]}>
+            <Card.Content style={styles.metricContent}>
+              <Title style={styles.metricNumber}>
+                {getPendingPaymentsCount()}
+              </Title>
+              <Paragraph style={styles.metricLabel}>
+                Pending Payments
+              </Paragraph>
+            </Card.Content>
+          </Card>
+        </View>
+
+        {/* Business Statistics */}
         <Card style={styles.statsCard}>
           <Card.Content>
-            <Title style={styles.statsTitle}>Today's Summary</Title>
+            <Title style={styles.statsTitle}>Today's Business Summary</Title>
             <Divider style={styles.divider} />
             
             <View style={styles.statRow}>
@@ -186,16 +242,54 @@ const HomeScreen = ({navigation}) => {
             </View>
 
             <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Target Achievement:</Text>
+              <Text style={styles.statLabel}>Collection Rate:</Text>
               <Text style={[
                 styles.statValue,
-                {color: progressPercentage >= 1 ? '#4CAF50' : '#757575'}
+                {color: collectionRate >= 0.9 ? '#4CAF50' : collectionRate >= 0.7 ? '#FF9800' : '#F44336'}
               ]}>
-                {Math.round(progressPercentage * 100)}%
+                {Math.round(collectionRate * 100)}%
               </Text>
+            </View>
+
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>Vegetable Types in Stock:</Text>
+              <Text style={styles.statValue}>{summary.inventory ? summary.inventory.length : 0}</Text>
             </View>
           </Card.Content>
         </Card>
+
+        {/* Current Inventory */}
+        {summary.inventory && summary.inventory.length > 0 && (
+          <Card style={styles.inventoryCard}>
+            <Card.Content>
+              <Title style={styles.statsTitle}>Current Stock</Title>
+              <Divider style={styles.divider} />
+              
+              {summary.inventory.slice(0, 5).map((item, index) => (
+                <View key={index} style={styles.inventoryRow}>
+                  <View style={styles.inventoryInfo}>
+                    <Text style={styles.vegetableName}>{item.vegetable_type}</Text>
+                    <Text style={styles.inventoryDetails}>
+                      {item.current_stock} {item.unit_type} remaining
+                    </Text>
+                  </View>
+                  <View style={styles.inventoryValue}>
+                    <Text style={styles.rateText}>@₹{item.market_rate}</Text>
+                    <Text style={styles.valueText}>
+                      ₹{(item.current_stock * item.market_rate).toFixed(0)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+              
+              {summary.inventory && summary.inventory.length > 5 && (
+                <Text style={styles.moreText}>
+                  +{summary.inventory.length - 5} more vegetables...
+                </Text>
+              )}
+            </Card.Content>
+          </Card>
+        )}
 
         {/* Quick Actions */}
         <Card style={styles.actionsCard}>
@@ -207,14 +301,30 @@ const HomeScreen = ({navigation}) => {
                 mode="outlined" 
                 onPress={() => navigation.navigate('AddSale')}
                 style={styles.actionChip}>
-                Add New Sale
+                Record Sale
               </Chip>
               <Chip 
-                icon="history" 
+                icon="warehouse" 
+                mode="outlined" 
+                onPress={() => navigation.navigate('Inventory')}
+                style={styles.actionChip}>
+                Manage Stock
+              </Chip>
+            </View>
+            <View style={styles.actionButtons}>
+              <Chip 
+                icon="cash" 
+                mode="outlined" 
+                onPress={() => navigation.navigate('Payments')}
+                style={styles.actionChip}>
+                Payments
+              </Chip>
+              <Chip 
+                icon="calendar" 
                 mode="outlined" 
                 onPress={() => navigation.navigate('History')}
                 style={styles.actionChip}>
-                View History
+                History
               </Chip>
             </View>
           </Card.Content>
@@ -226,7 +336,7 @@ const HomeScreen = ({navigation}) => {
       <FAB
         style={styles.fab}
         icon="plus"
-        label="Add Sale"
+        label="Quick Sale"
         onPress={() => navigation.navigate('AddSale')}
       />
     </View>
@@ -304,6 +414,14 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     backgroundColor: '#E8F5E8',
   },
+  inventoryCard: {
+    marginRight: 8,
+    backgroundColor: '#FFF3E0',
+  },
+  pendingCard: {
+    marginLeft: 8,
+    backgroundColor: '#FFEBEE',
+  },
   metricContent: {
     alignItems: 'center',
   },
@@ -367,6 +485,45 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: '#4CAF50',
+  },
+  inventoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  inventoryInfo: {
+    flex: 1,
+  },
+  vegetableName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  inventoryDetails: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  inventoryValue: {
+    alignItems: 'flex-end',
+  },
+  rateText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  valueText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
+  moreText: {
+    textAlign: 'center',
+    color: '#666',
+    fontStyle: 'italic',
+    marginTop: 8,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   ScrollView,
@@ -6,6 +6,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Card,
@@ -17,30 +18,98 @@ import {
   Divider,
   Chip,
   HelperText,
+  Menu,
+  ActivityIndicator,
 } from 'react-native-paper';
 import databaseHelper from '../database/database';
 
 const AddSaleScreen = ({navigation}) => {
   const [formData, setFormData] = useState({
     vendorName: '',
-    traysSold: '',
-    ratePerTray: '',
+    vegetableType: '',
+    quantitySold: '',
+    unitType: 'trays',
+    ratePerUnit: '',
     paymentMethod: 'Cash',
+    paymentStatus: 'paid',
+    truckArrivalTime: '',
+    distributionTime: '',
+    notes: ''
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [vegetableTypes, setVegetableTypes] = useState([]);
+  const [currentInventory, setCurrentInventory] = useState([]);
 
   // Common vendor names for quick selection
   const commonVendors = [
-    'Raj Vegetables',
-    'Krishna Market',
-    'Shiva Traders',
-    'Local Vendor',
-    'Wholesale Market',
+    'City Retail Store',
+    'Local Vegetable Shop',
+    'Market Vendor A',
+    'Market Vendor B',
+    'Restaurant Supply',
+    'Hotel Chain',
+    'Grocery Store',
   ];
 
-  // Common rates for quick selection
-  const commonRates = [25, 30, 35, 40, 45, 50];
+  // Common rates for quick selection (vary by vegetable)
+  const getCommonRates = (vegetableType) => {
+    const rateRanges = {
+      'Tomatoes': [20, 25, 30, 35, 40],
+      'Onions': [15, 18, 22, 25, 28],
+      'Potatoes': [12, 15, 18, 20, 25],
+      'Carrots': [25, 30, 35, 40, 45],
+      'Cabbage': [8, 10, 12, 15, 18],
+      'default': [15, 20, 25, 30, 35]
+    };
+    return rateRanges[vegetableType] || rateRanges.default;
+  };
+
+  // Unit type options
+  const unitTypes = ['trays', 'sacks', 'boxes', 'kg', 'quintals'];
+
+  // Load data on component mount
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  const loadInitialData = async () => {
+    try {
+      // Load vegetable types
+      const vegetables = await databaseHelper.getAllVegetableTypes();
+      setVegetableTypes(vegetables);
+
+      // Load today's inventory
+      const today = new Date().toISOString().split('T')[0];
+      const inventory = await databaseHelper.getInventoryByDate(today);
+      setCurrentInventory(inventory);
+      
+      // Auto-fill truck arrival time with current time if empty
+      const now = new Date();
+      const timeString = now.toTimeString().substring(0, 5);
+      if (!formData.truckArrivalTime) {
+        setFormData(prev => ({...prev, truckArrivalTime: timeString}));
+      }
+    } catch (error) {
+      console.log('Error loading initial data:', error);
+    }
+  };
+
+  // Get current stock for selected vegetable
+  const getCurrentStock = () => {
+    const stockItem = currentInventory.find(item => 
+      item.vegetable_type === formData.vegetableType
+    );
+    return stockItem ? stockItem.current_stock : 0;
+  };
+
+  // Get market rate for selected vegetable
+  const getMarketRate = () => {
+    const stockItem = currentInventory.find(item => 
+      item.vegetable_type === formData.vegetableType
+    );
+    return stockItem ? stockItem.market_rate : 0;
+  };
 
   // Validate form data
   const validateForm = () => {

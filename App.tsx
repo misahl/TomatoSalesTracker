@@ -109,15 +109,15 @@ function App() {
               component={HomeScreen}
               options={{
                 title: 'Dashboard',
-                headerTitle: 'Tomato Sales Tracker',
+                headerTitle: 'Wholesale Vegetable Business',
               }}
             />
             <Tab.Screen 
               name="AddSale" 
               component={AddSaleScreen}
               options={{
-                title: 'Add Sale',
-                headerTitle: 'Add New Sale',
+                title: 'Record Sale',
+                headerTitle: 'Record Vegetable Sale',
               }}
             />
             <Tab.Screen 
@@ -125,7 +125,7 @@ function App() {
               component={HistoryScreen}
               options={{
                 title: 'History',
-                headerTitle: 'Sales History',
+                headerTitle: 'Business History',
               }}
             />
           </Tab.Navigator>

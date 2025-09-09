@@ -1,4 +1,37 @@
 {
-  "name": "TomatoSalesTracker",
-  "displayName": "TomatoSalesTracker"
+  "expo": {
+    "name": "Wholesale Vegetable Business",
+    "slug": "tomato-sales-tracker",
+    "version": "1.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#4CAF50"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.wholesalevegetablebusiness",
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "com.wholesalevegetablebusiness",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#4CAF50"
+      }
+    },
+    "web": {},
+    "extra": {
+      "eas": {
+        "projectId": "29b715e5-bd10-45bc-b5e9-f813a93e0f71"
+      }
+    }
+  },
+  "name": "WholesaleVegetableBusiness",
+  "displayName": "Wholesale Vegetable Business"
 }

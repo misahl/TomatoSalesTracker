@@ -56,12 +56,12 @@ const HistoryScreen = ({navigation}) => {
     }
   };
 
-  // Calculate totals for displayed sales
+  // Calculate totals for displayed sales with backward compatibility
   const calculateTotals = (salesData) => {
     const totals = salesData.reduce(
       (acc, sale) => ({
-        totalTrays: acc.totalTrays + sale.trays_sold,
-        totalAmount: acc.totalAmount + sale.total_amount,
+        totalTrays: acc.totalTrays + (sale.quantity_sold || sale.trays_sold || 0),
+        totalAmount: acc.totalAmount + (sale.total_amount || 0),
         totalTransactions: acc.totalTransactions + 1,
       }),
       {totalTrays: 0, totalAmount: 0, totalTransactions: 0}
@@ -175,6 +175,41 @@ const HistoryScreen = ({navigation}) => {
     setDetailModalVisible(true);
   };
 
+  // Handle sale deletion
+  const handleDeleteSale = (sale) => {
+    Alert.alert(
+      'Delete Sale',
+      `Are you sure you want to delete this sale?\n\nVendor: ${sale.vendor_name}\nAmount: ₹${sale.total_amount}\nDate: ${formatDate(sale.sale_date)}\n\nThis action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const success = await databaseHelper.deleteSale(sale.id);
+              if (success) {
+                Alert.alert('Success', 'Sale deleted successfully!');
+                await loadSales(); // Reload the list
+              } else {
+                Alert.alert('Error', 'Failed to delete sale. Please try again.');
+              }
+            } catch (error) {
+              console.log('Error deleting sale:', error);
+              Alert.alert('Error', 'Failed to delete sale. Please try again.');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Get filter label
   const getFilterLabel = () => {
     switch (selectedFilter) {
@@ -200,6 +235,7 @@ const HistoryScreen = ({navigation}) => {
     <Card 
       style={styles.saleCard} 
       onPress={() => handleSalePress(item)}
+      onLongPress={() => handleDeleteSale(item)}
       mode="outlined">
       <Card.Content>
         <View style={styles.saleHeader}>
@@ -209,24 +245,39 @@ const HistoryScreen = ({navigation}) => {
               {formatDate(item.sale_date)} • {formatTime(item.sale_time)}
             </Text>
           </View>
-          <Chip
-            mode="flat"
-            textStyle={{color: getPaymentMethodColor(item.payment_method)}}
-            style={{backgroundColor: `${getPaymentMethodColor(item.payment_method)}20`}}>
-            {item.payment_method}
-          </Chip>
+          <View style={styles.saleHeaderRight}>
+            <Chip
+              mode="flat"
+              textStyle={{color: getPaymentMethodColor(item.payment_method)}}
+              style={{backgroundColor: `${getPaymentMethodColor(item.payment_method)}20`, marginRight: 8}}>
+              {item.payment_method}
+            </Chip>
+            <Button
+              mode="text"
+              icon="delete"
+              compact
+              onPress={() => handleDeleteSale(item)}
+              textColor="#F44336"
+              style={styles.deleteButton}>
+              
+            </Button>
+          </View>
         </View>
 
         <Divider style={styles.saleDivider} />
 
         <View style={styles.saleDetails}>
           <View style={styles.saleDetailItem}>
-            <Text style={styles.detailLabel}>Trays Sold</Text>
-            <Text style={styles.detailValue}>{item.trays_sold}</Text>
+            <Text style={styles.detailLabel}>Units Sold</Text>
+            <Text style={styles.detailValue}>
+              {item.quantity_sold || item.trays_sold} {item.unit_type || 'trays'}
+            </Text>
           </View>
           <View style={styles.saleDetailItem}>
-            <Text style={styles.detailLabel}>Rate/Tray</Text>
-            <Text style={styles.detailValue}>{formatCurrency(item.rate_per_tray)}</Text>
+            <Text style={styles.detailLabel}>Rate/Unit</Text>
+            <Text style={styles.detailValue}>
+              {formatCurrency(item.rate_per_unit || item.rate_per_tray)}
+            </Text>
           </View>
           <View style={styles.saleDetailItem}>
             <Text style={styles.detailLabel}>Total</Text>
@@ -235,6 +286,24 @@ const HistoryScreen = ({navigation}) => {
             </Text>
           </View>
         </View>
+        
+        {/* Show vegetable type if not tomatoes */}
+        {item.vegetable_type && item.vegetable_type !== 'Tomatoes' && (
+          <View style={styles.vegetableTypeContainer}>
+            <Chip mode="outlined" compact>
+              {item.vegetable_type}
+            </Chip>
+          </View>
+        )}
+        
+        {/* Payment status indicator */}
+        {item.payment_status === 'pending' && (
+          <View style={styles.pendingContainer}>
+            <Chip mode="outlined" textStyle={{color: '#FF9800'}} style={{borderColor: '#FF9800'}} compact>
+              Payment Pending: {formatCurrency(item.due_amount || item.total_amount)}
+            </Chip>
+          </View>
+        )}
       </Card.Content>
     </Card>
   );
@@ -429,6 +498,22 @@ const styles = StyleSheet.create({
   },
   saleHeaderLeft: {
     flex: 1,
+  },
+  saleHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    minWidth: 40,
+    marginLeft: 4,
+  },
+  vegetableTypeContainer: {
+    marginTop: 8,
+    alignItems: 'flex-start',
+  },
+  pendingContainer: {
+    marginTop: 8,
+    alignItems: 'flex-start',
   },
   vendorName: {
     fontSize: 16,
